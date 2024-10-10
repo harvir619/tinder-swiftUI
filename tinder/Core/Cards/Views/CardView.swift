@@ -8,28 +8,65 @@
 import SwiftUI
 
 struct CardView: View {
+    @State private var xOffset: CGFloat = 0
+    @State private var degrees: Double = 0
+    @State private var currentImageIndex = 0
+    
+    @State private var mockImages = [
+        "suzy",
+        "suzy2"
+        
+    ]
+    
+    
     var body: some View {
-        ZStack(alignment:.bottom){
-            Image(.suzy)
-                .resizable()
-                .scaledToFill()
-                .frame(width:cardWidth,height:cardHeight)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+        ZStack(alignment: .bottom) {
+            ZStack(alignment:.top) {
+                Image(mockImages[currentImageIndex])
+                    .resizable()
+                    .scaledToFill()
+                    .overlay{
+                        ImageScrollingOverlayView(currentImageIndex: $currentImageIndex,imageCount: $mockImages.count)
+                    }
+                    .frame(width: SizeConstants.cardWidth, height: SizeConstants.cardHeight)
+                CardImageIndicatorView(currentImageIndex: currentImageIndex, imageCount: $mockImages.count)
+                SwipeActionIndicatorView(xOffset: $xOffset)
+                
+            }
             UserInfoView()
+                .padding(.horizontal) // Add padding to ensure it stays within bounds
+        }
+        .frame(width: SizeConstants.cardWidth, height: SizeConstants.cardHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .offset(x:xOffset)
+        .rotationEffect(.degrees(degrees))
+        .animation(.snappy, value: xOffset)
+        .gesture(
+            DragGesture()
+                .onChanged(onDragChange)
+                .onEnded(onDragEnded)
+        )
+
+    }
+}
+
+private extension CardView{
+    func onDragChange(_ value: _ChangedGesture<DragGesture>.Value){
+        xOffset = value.translation.width
+        degrees = Double(value.translation.width/25)
+    }
+    func onDragEnded(_ value: _ChangedGesture<DragGesture>.Value){
+        let width = value.translation.width
+        
+        if abs(width) < abs(SizeConstants.screenCutoff) {
+            withAnimation(.spring()){
+                xOffset = 0
+                degrees = 0
+            }
         }
     }
 }
 
-private extension CardView {
-    var cardWidth: CGFloat {
-        UIScreen.main.bounds.width - 20
-    }
-
-    var cardHeight: CGFloat {
-        UIScreen.main.bounds.height / 1.45
-    }
-
-}
 
 #Preview {
     CardView()
