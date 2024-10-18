@@ -8,34 +8,39 @@
 import SwiftUI
 
 struct CardView: View {
+    @EnvironmentObject var matchManager: MatchManager
+    
+    @ObservedObject var viewModel: CardsViewModel
+    
+    
     @State private var xOffset: CGFloat = 0
     @State private var degrees: Double = 0
     @State private var currentImageIndex = 0
-    
-    @State private var mockImages = [
-        "suzy",
-        "suzy2"
-        
-    ]
+    @State private var showProfileModal = false
     
     
+    
+    let model: CardModel
     var body: some View {
         ZStack(alignment: .bottom) {
             ZStack(alignment:.top) {
-                Image(mockImages[currentImageIndex])
+                Image(user.profileImageURLs[currentImageIndex])
                     .resizable()
                     .scaledToFill()
                     .overlay{
-                        ImageScrollingOverlayView(currentImageIndex: $currentImageIndex,imageCount: $mockImages.count)
+                        ImageScrollingOverlayView(currentImageIndex: $currentImageIndex,imageCount: imageCount)
                     }
                     .frame(width: SizeConstants.cardWidth, height: SizeConstants.cardHeight)
-                CardImageIndicatorView(currentImageIndex: currentImageIndex, imageCount: $mockImages.count)
+                CardImageIndicatorView(currentImageIndex: currentImageIndex, imageCount: imageCount)
                 SwipeActionIndicatorView(xOffset: $xOffset)
                 
             }
-            UserInfoView()
-                .padding(.horizontal) // Add padding to ensure it stays within bounds
+            UserInfoView(showProfileModal: $showProfileModal,user: user)
         }
+        .fullScreenCover(isPresented: $showProfileModal ){
+            UserProfileView(user: user)
+        }
+        .onReceive(viewModel.$buttonSwipeAction, perform: {action in onReceiveSwipeAction(action)})
         .frame(width: SizeConstants.cardWidth, height: SizeConstants.cardHeight)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .offset(x:xOffset)
@@ -51,6 +56,67 @@ struct CardView: View {
 }
 
 private extension CardView{
+    var user:User{
+        return model.user
+    }
+    
+    var imageCount: Int {
+        return user.profileImageURLs.count
+    }
+    
+}
+
+private extension CardView{
+    func returnToCenter(){
+        xOffset = 0
+        degrees = 0
+    }
+    
+    
+    func swipeRight(){
+
+        withAnimation{
+            xOffset = 500
+            degrees = 12
+        } completion: {
+            viewModel.removeCard(model)
+            matchManager.checkForMatch(withUser: user)
+        }
+
+    }
+    
+    func swipeLeft(){
+        withAnimation{
+            xOffset = -500
+            degrees = -12
+        } completion: {
+            viewModel.removeCard(model)
+        }
+
+    }
+    
+    func onReceiveSwipeAction(_ action: SwipeAction?){
+        guard let action else { return }
+        
+        let topCard = viewModel.cardModels.last
+        
+        if topCard == model {
+            switch action{
+            case .reject:
+                swipeLeft()
+            case .like:
+                swipeRight()
+            }
+            
+        }
+        
+    }
+    
+    
+    
+}
+
+private extension CardView{
     func onDragChange(_ value: _ChangedGesture<DragGesture>.Value){
         xOffset = value.translation.width
         degrees = Double(value.translation.width/25)
@@ -60,14 +126,24 @@ private extension CardView{
         
         if abs(width) < abs(SizeConstants.screenCutoff) {
             withAnimation(.spring()){
-                xOffset = 0
-                degrees = 0
+                returnToCenter()
             }
+            return
         }
+        
+        if width >= SizeConstants.screenCutoff {
+            swipeRight()
+        } else{
+            swipeLeft()
+        }
+        
     }
 }
 
 
 #Preview {
-    CardView()
+    CardView(
+        viewModel: CardsViewModel(service: CardService()),
+        model: CardModel( user: MockData.users[0])
+    )
 }
